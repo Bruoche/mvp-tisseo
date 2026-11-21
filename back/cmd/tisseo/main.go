@@ -12,15 +12,21 @@ import (
 )
 
 const EnvServer = "TISSEO_BACK_SERV_NAME"
+const EnvPort = "TISSEO_BACK_PORT"
 
 func main() {
-	serv, err := GetServer(&request.NoParam{}, &request.NoParam{})
-	if err != nil {
+	serv, ok := getEnv(EnvServer)
+	if !ok {
 		log.Info("Aucun nom de serveur défini.")
 	} else {
 		log.Info("Running on %s.", serv)
 	}
-	request.Serve("localhost:8080", false,
+	port, ok := getEnv(EnvPort)
+	if !ok {
+		log.Debug("No port given at environnement variable %s", EnvPort)
+		port = "8080"
+	}
+	request.Serve("localhost:"+port, false,
 		request.MakePath(ext.GET, "/", request.String(request.Index)),
 		request.MakePath(ext.GET, "/server", request.String(GetServer)),
 		request.MakePath(ext.GET, "/stops/", request.Json(stops.All)),
@@ -29,14 +35,22 @@ func main() {
 }
 
 func GetServer(*request.NoParam, *request.NoParam) (string, error) {
-	for _, env := range os.Environ() {
-		pair := strings.SplitN(env, "=", 2)
-		if pair[0] == EnvServer {
-			return pair[1], nil
+	server, ok := getEnv(EnvServer)
+	if !ok {
+		return "", &request.ErrorResponse{
+			Code: 404,
+			Err:  fmt.Sprintf("Nom du serveur non défini. Veuillez définir la variable d'environnement \"%s\".", EnvServer),
 		}
 	}
-	return "", &request.ErrorResponse{
-		Code: 404,
-		Err:  fmt.Sprintf("Nom du serveur non défini. Veuillez définir la variable d'environnement \"%s\".", EnvServer),
+	return server, nil
+}
+
+func getEnv(key string) (string, bool) {
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		if pair[0] == key {
+			return pair[1], true
+		}
 	}
+	return "", false
 }
